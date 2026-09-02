@@ -13,11 +13,13 @@
     <!-- Material Symbols -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet">
     
-    <!-- Konva.js para Canvas -->
+    <!-- Konva.js para Canvas (Principal e Editor de Imagem) -->
     <script src="https://unpkg.com/konva@9.3.1/konva.min.js"></script>
 
+    <!-- UTIF.js para suportar arquivos TIFF/TIF em qualquer navegador -->
+    <script src="https://unpkg.com/utif@3.1.0/UTIF.js"></script>
+
     <style>
-        /* === Variáveis CSS (Paleta de Cores e Estilos) === */
         :root {
             --bg-color: #FCFAFD;
             --primary: #4A197D;
@@ -53,7 +55,6 @@
             overflow: hidden;
         }
 
-        /* === Header === */
         header {
             background-color: #ffffff;
             border-bottom: 1px solid var(--border);
@@ -70,10 +71,8 @@
         .header-links a { color: var(--text-secondary); text-decoration: none; margin-left: 20px; font-size: 0.9rem; transition: color 0.2s; }
         .header-links a:hover { color: var(--primary); }
 
-        /* === Layout Principal === */
         main { display: flex; flex: 1; overflow: hidden; }
 
-        /* === Sidebar === */
         .sidebar {
             width: 360px;
             background-color: #ffffff;
@@ -91,7 +90,6 @@
             display: flex; align-items: center; justify-content: space-between;
         }
 
-        /* === Upload Zone === */
         .upload-zone {
             border: 2px dashed var(--border); border-radius: var(--radius-lg);
             padding: 24px 20px; text-align: center; background-color: var(--bg-color);
@@ -103,7 +101,6 @@
         .upload-zone span { font-size: 0.8rem; color: var(--text-secondary); }
         .upload-zone input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 
-        /* === Groups & Lanes Section === */
         .group-container {
             background-color: var(--bg-color);
             border: 1px solid var(--border);
@@ -123,7 +120,6 @@
         .lane-list { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 4px; margin-top: 12px;}
         .lane-item { display: flex; align-items: center; gap: 8px; }
 
-        /* === Lane Groups Section === */
         .group-form { background-color: var(--bg-color); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border); margin-bottom: 12px; display: none; flex-direction: column; gap: 8px; }
         .group-form.active { display: flex; }
         .group-card { background-color: #fff; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;}
@@ -131,18 +127,21 @@
         .group-card .meta strong { color: var(--primary-dark); }
         .group-card .meta span { color: var(--text-secondary); font-size: 0.75rem; }
 
-        /* === Strip Cards === */
         .strip-list { display: flex; flex-direction: column; gap: 12px; }
         .strip-card {
             background-color: #fff; border: 1px solid var(--border); border-radius: var(--radius-md);
             padding: 12px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 10px;
             transition: border-color 0.2s;
         }
-        .strip-header { display: flex; justify-content: space-between; align-items: center; }
-        .strip-preview { height: 40px; width: 100%; object-fit: contain; background-color: var(--bg-color); border-radius: 4px; border: 1px solid var(--border); }
-        .strip-actions { display: flex; gap: 4px; }
+        .strip-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        .strip-preview-container {
+            flex: 1; height: 50px; background-color: var(--bg-color); border-radius: 4px;
+            border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+        }
+        .strip-preview { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .strip-actions { display: flex; gap: 4px; flex-shrink: 0; }
         
-        /* === Inputs === */
         .input-group { display: flex; gap: 8px; }
         .input-field { display: flex; flex-direction: column; gap: 4px; flex: 1; }
         .input-field label { font-size: 0.75rem; color: var(--text-secondary); font-weight: 500; }
@@ -153,19 +152,19 @@
         }
         input[type="text"]:focus, input[type="number"]:focus, select:focus { border-color: var(--primary); }
 
-        /* === Buttons === */
         .btn-text {
             background: none; border: none; color: var(--primary); font-size: 0.85rem; font-weight: 500;
             cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 4px 0;
         }
         .btn-text:hover { text-decoration: underline; }
+        
         .icon-btn {
             background: none; border: none; color: var(--text-secondary); cursor: pointer;
             padding: 4px; border-radius: 4px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;
         }
-        .icon-btn:hover { background-color: var(--light-lavender); color: var(--primary); }
-        .icon-btn.danger:hover { background-color: var(--danger-hover); color: var(--danger-text); }
-        .icon-btn.active { color: var(--success); background-color: #E8F5E9; }
+        .icon-btn:hover:not(:disabled) { background-color: var(--light-lavender); color: var(--primary); }
+        .icon-btn.danger:hover:not(:disabled) { background-color: var(--danger-hover); color: var(--danger-text); }
+        .icon-btn:disabled { opacity: 0.25; cursor: not-allowed; }
         
         .btn {
             background-color: var(--light-lavender); color: var(--primary-dark); border: none;
@@ -175,17 +174,13 @@
         .btn:hover { background-color: var(--soft-pink); }
         .btn.primary { background-color: var(--primary); color: #fff; }
         .btn.primary:hover { background-color: var(--primary-dark); }
-        .btn.success { background-color: var(--success); color: #fff; }
-        
         .btn.toggle-active { background-color: var(--success); color: white; }
 
-        /* === Settings === */
         .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
         .checkbox-group { display: flex; flex-direction: column; gap: 10px; }
         .checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer; }
         .checkbox-label input[type="checkbox"] { accent-color: var(--primary); width: 16px; height: 16px; }
 
-        /* === Canvas Area === */
         .canvas-area { flex: 1; display: flex; flex-direction: column; position: relative; background-color: var(--bg-color); }
         .toolbar {
             padding: 12px 24px; background-color: #fff; border-bottom: 1px solid var(--border);
@@ -195,7 +190,6 @@
         .canvas-container-wrapper { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 40px; }
         #canvas-container { background-color: #fff; box-shadow: var(--shadow-md); transition: width 0.2s, height 0.2s; }
         
-        /* === Help Overlay === */
         .help-overlay {
             position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
             background-color: #321057; color: white; padding: 12px 24px; border-radius: 30px;
@@ -204,7 +198,6 @@
         }
         .help-overlay.visible { opacity: 1; }
 
-        /* === Empty State === */
         .empty-state {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             text-align: center; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 12px;
@@ -213,6 +206,36 @@
         .empty-state .material-symbols-rounded { font-size: 48px; color: var(--primary); opacity: 0.5; }
         .empty-state h3 { color: var(--text-main); font-weight: 500; }
         .empty-state p { color: var(--text-secondary); font-size: 0.9rem; }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-content {
+            background: #fff; border-radius: var(--radius-lg);
+            width: 700px; max-width: 95vw; padding: 24px;
+            display: flex; flex-direction: column; gap: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .modal-header { font-size: 1.2rem; font-weight: 600; color: var(--primary-dark); margin-bottom: 4px;}
+        
+        .editor-workspace {
+            width: 100%; height: 400px;
+            background: #e9e9e9; border: 1px solid var(--border);
+            border-radius: var(--radius-md); overflow: hidden;
+            position: relative; cursor: grab;
+            background-image: radial-gradient(#d0c8d6 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .editor-workspace:active { cursor: grabbing; }
+        
+        .editor-controls { display: flex; gap: 16px; align-items: center; background: var(--bg-color); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border); }
+        .editor-controls input[type="range"] { flex: 1; accent-color: var(--primary); }
+        
+        .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; }
     </style>
 </head>
 <body>
@@ -228,30 +251,26 @@
     </header>
 
     <main>
-        <!-- Sidebar -->
         <aside class="sidebar">
-            <!-- Upload Section -->
             <div class="section" style="padding-bottom: 10px;">
                 <div class="upload-zone" id="upload-zone">
                     <span class="material-symbols-rounded">image</span>
                     <p>Add blot strip</p>
-                    <span>PNG, JPG (Drag & Drop)</span>
-                    <input type="file" id="file-input" multiple accept="image/png, image/jpeg, image/jpg">
+                    <span>PNG, JPG, TIF (Drag & Drop)</span>
+                    <input type="file" id="file-input" multiple accept="image/png, image/jpeg, image/jpg, image/tiff, .tif, .tiff">
                 </div>
             </div>
 
-            <!-- Group & Lanes Section -->
             <div class="section">
                 <div class="section-title">
                     Experiment / Lanes
                     <span class="material-symbols-rounded" style="font-size: 16px;">science</span>
                 </div>
                 <div class="group-container" id="group-container">
-                    <!-- Gerado via JS -->
+                    <!-- Populated via JS -->
                 </div>
             </div>
 
-            <!-- Lane Groups Section -->
             <div class="section">
                 <div class="section-title">
                     Lane Groups
@@ -280,7 +299,6 @@
                 </button>
             </div>
 
-            <!-- Strips Section -->
             <div class="section">
                 <div class="section-title">
                     Uploaded strips
@@ -289,7 +307,6 @@
                 <div class="strip-list" id="strip-list"></div>
             </div>
 
-            <!-- Settings Section -->
             <div class="section">
                 <div class="section-title">Figure settings</div>
                 <div class="settings-grid">
@@ -309,12 +326,19 @@
                         <label>Lane font size</label>
                         <input type="number" id="setting-laneSize" value="14" min="8">
                     </div>
-                    <div class="input-field" style="grid-column: span 2;">
-                        <label>Lane label orientation</label>
+                    <div class="input-field" style="grid-column: span 1;">
+                        <label>Target info position</label>
+                        <select id="setting-infoPosition">
+                            <option value="left">Left</option>
+                            <option value="right">Right</option>
+                        </select>
+                    </div>
+                    <div class="input-field" style="grid-column: span 1;">
+                        <label>Label orientation</label>
                         <select id="setting-rotation">
-                            <option value="0">Horizontal (0°)</option>
-                            <option value="-45">Diagonal (-45°)</option>
-                            <option value="-90">Vertical (-90°)</option>
+                            <option value="0">0°</option>
+                            <option value="-45">-45°</option>
+                            <option value="-90">-90°</option>
                         </select>
                     </div>
                 </div>
@@ -337,13 +361,8 @@
             </div>
         </aside>
 
-        <!-- Canvas Area -->
         <section class="canvas-area">
             <div class="toolbar">
-                <button class="btn primary" id="btn-auto-arrange" title="Re-calculate and align all panels" style="width: auto;">
-                    <span class="material-symbols-rounded" style="font-size: 18px;">auto_awesome</span> Auto Arrange
-                </button>
-                <div class="toolbar-divider"></div>
                 <button class="btn" id="btn-toggle-calibrate" title="Adjust Global Master Lanes" style="width: auto;">
                     <span class="material-symbols-rounded" style="font-size: 18px;">straighten</span> Adjust Lanes
                 </button>
@@ -371,8 +390,36 @@
         </section>
     </main>
 
+    <div id="image-editor-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div>
+                <h2 class="modal-header">Edit Strip</h2>
+                <p style="font-size: 0.85rem; color: var(--text-secondary);">Adjust crop area, rotate freely, or enhance contrast before adding to canvas.</p>
+            </div>
+            
+            <div class="editor-workspace" id="editor-konva-container">
+                <!-- Konva Editor Stage Goes Here -->
+            </div>
+            
+            <div class="editor-controls">
+                <div class="input-field">
+                    <label>Rotation (°)</label>
+                    <input type="range" id="edit-rotation" min="-180" max="180" value="0" oninput="updateEditorRotation(this.value)">
+                </div>
+                <div class="input-field">
+                    <label>Contrast</label>
+                    <input type="range" id="edit-contrast" min="-100" max="100" value="0" oninput="updateEditorContrast(this.value)">
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn" onclick="skipEdits()" style="width: auto;">Cancel</button>
+                <button class="btn primary" onclick="applyEdits()" style="width: auto;">Crop & Add Strip</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // === ESTADO GLOBAL ===
         const state = {
             groups: [
                 {
@@ -381,10 +428,11 @@
                     laneCount: 4, 
                     hasLadder: false,
                     ladderPosition: 'left', 
+                    ladderName: '', // Permitir label customizado
                     laneLabels: ['Control', 'Treatment 1', 'Treatment 2', 'Treatment 3'],
                     laneGroups: [],
-                    firstLaneX: 0.10, // Global First Lane calibrator (10% of width)
-                    lastLaneX: 0.90   // Global Last Lane calibrator (90% of width)
+                    firstLaneX: 0.10,
+                    lastLaneX: 0.90
                 }
             ],
             strips: [], 
@@ -399,7 +447,8 @@
                 showGuides: false,
                 showStripBorder: false,
                 stripBorderWidth: 1,
-                laneLabelRotation: 0 
+                laneLabelRotation: 0,
+                infoPosition: 'left' // Nova funcionalidade
             },
             canvasConfig: {
                 paddingTop: 80,
@@ -414,6 +463,7 @@
         let stripCounter = 0;
         let groupCounter = 0;
 
+        // Main Stage setup
         const stage = new Konva.Stage({
             container: 'canvas-container',
             width: 800,
@@ -431,7 +481,7 @@
         stage.add(calibrationLayer);
 
         stage.on('click tap', (e) => {
-            if (e.target === stage) {
+            if (e.target === stage && state.isCalibrating) {
                 state.isCalibrating = false;
                 document.getElementById('btn-toggle-calibrate').classList.remove('toggle-active');
                 document.getElementById('help-overlay').classList.remove('visible');
@@ -439,36 +489,9 @@
             }
         });
 
-        function getLaneGeometry(group, frameX, frameWidth) {
-            const totalLanes = group.laneCount + (group.hasLadder ? 1 : 0);
-            
-            // Apply global master calibration percentages over the unified width
-            const firstLaneCanvasX = frameX + (frameWidth * group.firstLaneX);
-            const lastLaneCanvasX = frameX + (frameWidth * group.lastLaneX);
-            const totalDist = lastLaneCanvasX - firstLaneCanvasX;
-            
-            const spacing = totalLanes > 1 ? totalDist / (totalLanes - 1) : 100;
-            
-            const centers = [];
-            const boundaries = [];
-            
-            for (let i = 0; i < totalLanes; i++) {
-                const center = firstLaneCanvasX + (i * spacing);
-                const left = center - (spacing / 2);
-                const right = center + (spacing / 2);
-                
-                centers.push(Math.round(center) + 0.5);
-                boundaries.push({
-                    left: Math.round(left) + 0.5,
-                    right: Math.round(right) + 0.5
-                });
-            }
-            
-            return { centers, boundaries, spacing };
-        }
-
         const uploadZone = document.getElementById('upload-zone');
         const fileInput = document.getElementById('file-input');
+        let fileQueue = [];
 
         uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
         uploadZone.addEventListener('dragleave', () => { uploadZone.classList.remove('dragover'); });
@@ -477,15 +500,192 @@
 
         function handleFiles(files) {
             Array.from(files).forEach(file => {
-                if (!file.type.match('image.*')) return;
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => { addStrip(file, img); };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
+                if (file.type.match('image.*') || file.name.match(/\.(tif|tiff)$/i)) fileQueue.push(file);
             });
+            if (!document.getElementById('image-editor-modal').classList.contains('active')) {
+                processNextFile();
+            }
+        }
+
+        function processNextFile() {
+            if (fileQueue.length === 0) return;
+            const file = fileQueue[0];
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                const isTiff = file.name.match(/\.(tif|tiff)$/i);
+                
+                // Se for TIFF, usamos a biblioteca UTIF.js para decodificar e renderizar em um Canvas temporário
+                if (isTiff && typeof UTIF !== 'undefined') {
+                    try {
+                        const buffer = e.target.result;
+                        const ifds = UTIF.decode(buffer);
+                        UTIF.decodeImage(buffer, ifds[0]);
+                        const rgba = UTIF.toRGBA8(ifds[0]);
+                        
+                        const canvas = document.createElement('canvas');
+                        canvas.width = ifds[0].width;
+                        canvas.height = ifds[0].height;
+                        const ctx = canvas.getContext('2d');
+                        const imageData = new ImageData(new Uint8ClampedArray(rgba), canvas.width, canvas.height);
+                        ctx.putImageData(imageData, 0, 0);
+                        
+                        const img = new Image();
+                        img.onload = () => { openEditorModal(file, img); };
+                        img.onerror = () => { 
+                            alert("Erro ao processar a imagem TIFF renderizada."); 
+                            fileQueue.shift(); processNextFile(); 
+                        };
+                        img.src = canvas.toDataURL('image/png'); // Passamos para o editor como PNG
+                    } catch (err) {
+                        alert("Erro ao ler o arquivo TIFF. Ele pode estar corrompido ou em um formato não suportado.");
+                        fileQueue.shift();
+                        processNextFile();
+                    }
+                } else {
+                    // Para PNG/JPG (ou fallback caso não haja UTIF)
+                    const img = new Image();
+                    img.onload = () => { openEditorModal(file, img); };
+                    img.onerror = () => { 
+                        alert("Não foi possível carregar a imagem. O arquivo pode estar corrompido."); 
+                        fileQueue.shift(); processNextFile(); 
+                    };
+                    img.src = e.target.result;
+                }
+            };
+
+            // Se for TIFF precisamos ler como ArrayBuffer para a UTIF.js. Caso contrário, DataURL padrão.
+            if (file.name.match(/\.(tif|tiff)$/i) && typeof UTIF !== 'undefined') {
+                reader.readAsArrayBuffer(file);
+            } else {
+                reader.readAsDataURL(file);
+            }
+        }
+
+        let editorStage, editorImageNode, cropRect, cropTransformer, editorLayer;
+
+        function initEditor() {
+            const container = document.getElementById('editor-konva-container');
+            editorStage = new Konva.Stage({
+                container: 'editor-konva-container',
+                width: container.offsetWidth || 650,
+                height: 400
+            });
+            
+            editorLayer = new Konva.Layer();
+            editorStage.add(editorLayer);
+
+            editorImageNode = new Konva.Image({ draggable: true });
+            editorImageNode.cache();
+            editorImageNode.filters([Konva.Filters.Contrast]);
+            
+            cropRect = new Konva.Rect({
+                stroke: '#4A197D', strokeWidth: 2, dash: [5, 5],
+                draggable: true, name: 'crop-box'
+            });
+            
+            cropTransformer = new Konva.Transformer({
+                nodes: [cropRect],
+                rotateEnabled: false, keepRatio: false,
+                borderStroke: '#4A197D', anchorStroke: '#4A197D',
+                anchorFill: '#fff', anchorSize: 10, ignoreStroke: true
+            });
+            
+            editorLayer.add(editorImageNode);
+            editorLayer.add(cropRect);
+            editorLayer.add(cropTransformer);
+        }
+
+        function openEditorModal(file, img) {
+            const modal = document.getElementById('image-editor-modal');
+            modal.classList.add('active');
+            
+            // Garantir que a UI atualizou o offsetWidth
+            setTimeout(() => {
+                if (!editorStage) initEditor();
+                
+                const container = document.getElementById('editor-konva-container');
+                editorStage.width(container.offsetWidth);
+                editorStage.height(container.offsetHeight);
+                
+                const stageW = editorStage.width();
+                const stageH = editorStage.height();
+                
+                // Fit image
+                const scale = Math.min(stageW * 0.8 / img.width, stageH * 0.8 / img.height);
+                const imgW = img.width * scale;
+                const imgH = img.height * scale;
+                
+                editorImageNode.image(img);
+                editorImageNode.width(imgW);
+                editorImageNode.height(imgH);
+                editorImageNode.offsetX(imgW / 2);
+                editorImageNode.offsetY(imgH / 2);
+                editorImageNode.position({ x: stageW / 2, y: stageH / 2 });
+                editorImageNode.rotation(0);
+                editorImageNode.contrast(0);
+                
+                editorImageNode.clearCache();
+                editorImageNode.cache();
+                
+                // Initial crop area slightly smaller than image
+                const cropPad = Math.min(imgW, imgH) * 0.1;
+                cropRect.width(imgW - cropPad);
+                cropRect.height(imgH - cropPad);
+                cropRect.position({ x: stageW / 2 - (imgW - cropPad) / 2, y: stageH / 2 - (imgH - cropPad) / 2 });
+                cropRect.scale({x: 1, y: 1});
+                
+                document.getElementById('edit-rotation').value = 0;
+                document.getElementById('edit-contrast').value = 0;
+                
+                editorStage.batchDraw();
+            }, 10);
+        }
+
+        function updateEditorRotation(val) {
+            if(!editorImageNode) return;
+            editorImageNode.rotation(parseFloat(val));
+            editorStage.batchDraw();
+        }
+
+        function updateEditorContrast(val) {
+            if(!editorImageNode) return;
+            editorImageNode.contrast(parseFloat(val));
+            editorImageNode.clearCache();
+            editorImageNode.cache();
+            editorStage.batchDraw();
+        }
+
+        function skipEdits() {
+            document.getElementById('image-editor-modal').classList.remove('active');
+            fileQueue.shift();
+            processNextFile();
+        }
+
+        function applyEdits() {
+            cropTransformer.hide();
+            cropRect.hide();
+            editorStage.draw();
+            
+            const box = cropRect.getClientRect();
+            
+            const dataURL = editorStage.toDataURL({
+                x: box.x, y: box.y, width: box.width, height: box.height,
+                pixelRatio: 3 // Resolução alta
+            });
+            
+            cropTransformer.show();
+            cropRect.show();
+            editorStage.batchDraw();
+            
+            const finalImg = new Image();
+            finalImg.onload = () => {
+                addStrip(fileQueue[0], finalImg);
+                document.getElementById('image-editor-modal').classList.remove('active');
+                fileQueue.shift();
+                processNextFile();
+            };
+            finalImg.src = dataURL;
         }
 
         function addStrip(file, imageObj) {
@@ -540,6 +740,10 @@
                         <option value="left" ${group.ladderPosition === 'left' ? 'selected' : ''}>Left</option>
                         <option value="right" ${group.ladderPosition === 'right' ? 'selected' : ''}>Right</option>
                     </select>
+                </div>
+                <div class="ladder-wrapper">
+                    <label>Ladder label:</label>
+                    <input type="text" value="${group.ladderName !== undefined ? group.ladderName : ''}" onchange="updateLadder('name', this.value)" style="width: 80px;" placeholder="Blank">
                 </div>`;
             }
             
@@ -609,24 +813,15 @@
             }
 
             groupCounter++;
-            state.groups[0].laneGroups.push({
-                id: 'lg_' + groupCounter,
-                name: name,
-                startLane: start,
-                endLane: end,
-                lineWidth: thick
-            });
+            state.groups[0].laneGroups.push({ id: 'lg_' + groupCounter, name: name, startLane: start, endLane: end, lineWidth: thick });
 
-            hideGroupForm();
-            updateUI();
-            autoArrange();
+            hideGroupForm(); updateUI(); autoArrange();
         };
 
         window.removeLaneGroup = (id) => {
             const group = state.groups[0];
             group.laneGroups = group.laneGroups.filter(g => g.id !== id);
-            updateUI();
-            autoArrange();
+            updateUI(); autoArrange();
         };
 
         function renderStripList() {
@@ -639,7 +834,9 @@
                 
                 card.innerHTML = `
                     <div class="strip-header">
-                        <img src="${strip.imageObj.src}" class="strip-preview" alt="Preview">
+                        <div class="strip-preview-container">
+                            <img src="${strip.imageObj.src}" class="strip-preview" alt="Preview">
+                        </div>
                         <div class="strip-actions">
                             <button class="icon-btn" onclick="moveStrip(${index}, -1)" ${index === 0 ? 'disabled' : ''} title="Move Up">
                                 <span class="material-symbols-rounded">arrow_upward</span>
@@ -686,12 +883,12 @@
         window.updateLadder = (type, value) => {
             if (type === 'has') state.groups[0].hasLadder = value;
             else if (type === 'pos') state.groups[0].ladderPosition = value;
+            else if (type === 'name') state.groups[0].ladderName = value;
             updateUI(); autoArrange();
         };
 
         window.updateLaneLabel = (index, value) => {
-            state.groups[0].laneLabels[index] = value;
-            drawFigure();
+            state.groups[0].laneLabels[index] = value; drawFigure();
         };
 
         window.updateStripData = (id, field, value) => {
@@ -700,8 +897,7 @@
         };
 
         window.removeStrip = (id) => {
-            state.strips = state.strips.filter(s => s.id !== id);
-            updateUI(); autoArrange();
+            state.strips = state.strips.filter(s => s.id !== id); updateUI(); autoArrange();
         };
 
         window.moveStrip = (index, direction) => {
@@ -724,16 +920,17 @@
         });
 
         document.getElementById('setting-rotation').addEventListener('change', (e) => {
-            state.settings.laneLabelRotation = parseInt(e.target.value);
-            autoArrange();
+            state.settings.laneLabelRotation = parseInt(e.target.value); autoArrange();
+        });
+        document.getElementById('setting-infoPosition').addEventListener('change', (e) => {
+            state.settings.infoPosition = e.target.value; autoArrange();
         });
 
         const settingChecks = ['showTarget', 'showMW', 'showLanes', 'showGuides', 'showStripBorder'];
         settingChecks.forEach(key => {
             const el = document.getElementById(`setting-${key}`);
             if(el) el.addEventListener('change', (e) => {
-                state.settings[key] = e.target.checked;
-                autoArrange(); 
+                state.settings[key] = e.target.checked; autoArrange(); 
             });
         });
 
@@ -755,14 +952,21 @@
             drawFigure(); 
         });
 
-        document.getElementById('btn-auto-arrange').addEventListener('click', () => autoArrange());
-
         function autoArrange() {
             if (state.strips.length === 0) { drawFigure(); return; }
 
             const group = state.groups[0]; 
             const groupStrips = state.strips.filter(s => s.groupId === group.id);
             if (groupStrips.length === 0) return;
+
+            // Configuração do preenchimento lateral dependendo da posição da informação
+            if (state.settings.infoPosition === 'right') {
+                state.canvasConfig.paddingLeft = 60;
+                state.canvasConfig.paddingRight = 240;
+            } else {
+                state.canvasConfig.paddingLeft = 240;
+                state.canvasConfig.paddingRight = 60;
+            }
 
             let startY = state.canvasConfig.paddingTop;
             
@@ -781,7 +985,6 @@
                 }
             }
 
-            // A largura de todas as imagens será idêntica e baseada na primeira imagem.
             const refStrip = groupStrips[0];
             const refRatio = refStrip.imageObj.width / refStrip.imageObj.height;
             const commonWidth = state.settings.stripHeight * refRatio;
@@ -789,14 +992,13 @@
 
             let currentY = startY;
 
-            // Adapta a altura de cada strip p/ manter o aspect ratio original perfeitamente.
             groupStrips.forEach(strip => {
                 const ratio = strip.imageObj.width / strip.imageObj.height;
                 
                 strip.frameX = frameLeft;
                 strip.frameY = currentY;
                 strip.frameWidth = commonWidth; 
-                strip.frameHeight = commonWidth / ratio; // Altura adaptada: Proporção intacta!
+                strip.frameHeight = commonWidth / ratio;
                 
                 strip.imageX = strip.frameX;
                 strip.imageY = strip.frameY;
@@ -806,13 +1008,36 @@
                 currentY += strip.frameHeight + state.settings.spacing;
             });
 
-            // Redimensionamento dinamico do Canvas
             const requiredHeight = currentY + state.canvasConfig.paddingBottom;
-            const requiredWidth = frameLeft + commonWidth + state.canvasConfig.paddingRight + 150;
+            const requiredWidth = frameLeft + commonWidth + state.canvasConfig.paddingRight + 50;
             stage.width(Math.max(800, requiredWidth));
             stage.height(Math.max(600, requiredHeight));
 
             drawFigure();
+        }
+
+        function getLaneGeometry(group, frameX, frameWidth) {
+            const totalLanes = group.laneCount + (group.hasLadder ? 1 : 0);
+            
+            const firstLaneCanvasX = frameX + (frameWidth * group.firstLaneX);
+            const lastLaneCanvasX = frameX + (frameWidth * group.lastLaneX);
+            const totalDist = lastLaneCanvasX - firstLaneCanvasX;
+            
+            const spacing = totalLanes > 1 ? totalDist / (totalLanes - 1) : 100;
+            
+            const centers = [];
+            const boundaries = [];
+            
+            for (let i = 0; i < totalLanes; i++) {
+                const center = firstLaneCanvasX + (i * spacing);
+                const left = center - (spacing / 2);
+                const right = center + (spacing / 2);
+                
+                centers.push(Math.round(center) + 0.5);
+                boundaries.push({ left: Math.round(left) + 0.5, right: Math.round(right) + 0.5 });
+            }
+            
+            return { centers, boundaries, spacing };
         }
 
         function drawFigure() {
@@ -831,66 +1056,59 @@
             const geom = getLaneGeometry(group, refStrip.frameX, refStrip.frameWidth);
             const totalLanes = geom.centers.length;
 
-            // A. DESENHA STRIPS, TARGET E MW
             groupStrips.forEach(strip => {
                 const stripGroup = new Konva.Group({
-                    x: strip.frameX,
-                    y: strip.frameY,
-                    width: strip.frameWidth,
-                    height: strip.frameHeight,
+                    x: strip.frameX, y: strip.frameY, width: strip.frameWidth, height: strip.frameHeight,
                 });
 
                 const imgNode = new Konva.Image({
-                    x: 0, y: 0, // Relativo ao Group
-                    image: strip.imageObj,
-                    width: strip.imageWidth,
-                    height: strip.imageHeight,
-                    opacity: 1
+                    x: 0, y: 0, image: strip.imageObj, width: strip.imageWidth, height: strip.imageHeight, opacity: 1
                 });
                 stripGroup.add(imgNode);
                 imageLayer.add(stripGroup);
 
-                // Borda perfeitamente colada graças a proporção adaptada.
                 if (state.settings.showStripBorder) {
                     const borderRect = new Konva.Rect({
-                        x: strip.frameX,
-                        y: strip.frameY,
-                        width: strip.frameWidth,
-                        height: strip.frameHeight,
-                        stroke: 'black',
-                        strokeWidth: state.settings.stripBorderWidth,
-                        listening: false 
+                        x: strip.frameX, y: strip.frameY, width: strip.frameWidth, height: strip.frameHeight,
+                        stroke: 'black', strokeWidth: state.settings.stripBorderWidth, listening: false 
                     });
                     imageLayer.add(borderRect);
                 }
 
-                const labelX = strip.frameX - 15;
+                let labelX = strip.frameX - 15;
+                let alignTarget = 'right';
+                let textX = labelX - 220;
+
+                if (state.settings.infoPosition === 'right') {
+                    labelX = strip.frameX + strip.frameWidth + 15;
+                    alignTarget = 'left';
+                    textX = labelX;
+                }
+
                 let currentLabelY = strip.frameY + (strip.frameHeight / 2);
 
                 if (state.settings.showTarget && state.settings.showMW) currentLabelY -= (state.settings.labelSize * 1.2) / 2;
 
                 if (state.settings.showTarget) {
                     textLayer.add(new Konva.Text({
-                        x: labelX - 200, y: currentLabelY - (state.settings.labelSize/2),
+                        x: textX, y: currentLabelY - (state.settings.labelSize/2),
                         text: strip.target, fontSize: state.settings.labelSize, fontFamily: fontFamily,
-                        fill: 'black', width: 200, align: 'right', fontStyle: 'bold'
+                        fill: 'black', width: 220, align: alignTarget, fontStyle: 'bold'
                     }));
                     if (state.settings.showMW) currentLabelY += state.settings.labelSize * 1.2;
                 }
                 if (state.settings.showMW) {
                     textLayer.add(new Konva.Text({
-                        x: labelX - 200, y: currentLabelY - (state.settings.labelSize/2),
+                        x: textX, y: currentLabelY - (state.settings.labelSize/2),
                         text: strip.mw + ' kDa', fontSize: state.settings.labelSize * 0.9, fontFamily: fontFamily,
-                        fill: '#555', width: 200, align: 'right'
+                        fill: '#555', width: 220, align: alignTarget
                     }));
                 }
             });
 
-            // B. DESENHA LANE LABELS, LADDER, GROUPS E GUIDES
             const lastStrip = groupStrips[groupStrips.length - 1];
             const groupBottomY = lastStrip.frameY + lastStrip.frameHeight + 15;
 
-            // 1. Labels e Guias
             for (let i = 0; i < totalLanes; i++) {
                 const centerX = geom.centers[i];
 
@@ -905,7 +1123,13 @@
                 }
 
                 if (state.settings.showLanes) {
-                    const text = isLadder ? "L" : (group.laneLabels[sampleIdx] || `Lane ${sampleIdx+1}`);
+                    let text = "";
+                    if (isLadder) {
+                        text = group.ladderName !== undefined && group.ladderName !== '' ? group.ladderName : "L";
+                    } else {
+                        text = group.laneLabels[sampleIdx] || `Lane ${sampleIdx+1}`;
+                    }
+
                     const laneText = new Konva.Text({
                         text: text, fontSize: state.settings.laneSize, fontFamily: fontFamily,
                         fill: isLadder ? '#756D7C' : 'black', fontStyle: isLadder ? 'italic' : 'normal'
@@ -931,7 +1155,6 @@
                 }
             }
 
-            // 2. Lane Groups
             if (group.laneGroups.length > 0) {
                 let textOffsetHeight = 15;
                 if (state.settings.showLanes) {
@@ -949,15 +1172,13 @@
                     const pEndIdx = (group.hasLadder && group.ladderPosition === 'left') ? g.endLane + 1 : g.endLane;
 
                     if (pStartIdx < totalLanes && pEndIdx < totalLanes) {
-                        // Gap p/ evitar colisões visuais de linhas de grupo
                         const gap = Math.min(6, geom.spacing * 0.15); 
                         const startX = geom.boundaries[pStartIdx].left + gap;
                         const endX = geom.boundaries[pEndIdx].right - gap;
                         const lineY = Math.round(refStrip.frameY - textOffsetHeight - 10) + 0.5; 
 
                         const groupLine = new Konva.Line({
-                            points: [startX, lineY, endX, lineY],
-                            stroke: 'black', strokeWidth: g.lineWidth
+                            points: [startX, lineY, endX, lineY], stroke: 'black', strokeWidth: g.lineWidth
                         });
                         textLayer.add(groupLine);
 
@@ -965,8 +1186,7 @@
                         const groupText = new Konva.Text({
                             y: lineY - state.settings.laneSize - 8,
                             text: g.name, fontSize: state.settings.laneSize, fontFamily: fontFamily,
-                            fill: 'black', fontStyle: 'bold',
-                            wrap: 'none'
+                            fill: 'black', fontStyle: 'bold', wrap: 'none'
                         });
                         
                         groupText.x(centerGroupX - groupText.width() / 2);
@@ -975,12 +1195,10 @@
                 });
             }
 
-            // C. MODO DE CALIBRAÇÃO GLOBAL DA FIGURA
             if (state.isCalibrating) {
                 drawMasterCalibrationHandles(groupStrips, group);
             }
 
-            // D. Expansão Dinâmica Horizontal baseada no texto
             const textBounds = textLayer.getClientRect();
             if (textBounds.width > 0) {
                 const requiredW = textBounds.x + textBounds.width + 50;
@@ -994,7 +1212,6 @@
             const refStrip = groupStrips[0];
             const lastStrip = groupStrips[groupStrips.length - 1];
             
-            // Hastes cruzam o bloco inteiro de cima até embaixo
             const yStart = refStrip.frameY - 20;
             const yEnd = lastStrip.frameY + lastStrip.frameHeight + 20;
             
