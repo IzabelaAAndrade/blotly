@@ -723,31 +723,89 @@
                 target: `Protein ${stripCounter}`, mw: '30',
                 frameX: 0, frameY: 0, frameWidth: 0, frameHeight: 0, imageX: 0, imageY: 0, imageWidth: 0, imageHeight: 0
             };
+            if (!state.groups[0].baseStripId) {
+                state.groups[0].baseStripId = newStrip.id;
+            }
             state.strips.push(newStrip); updateUI(); autoArrange(); 
         }
 
-        // Funções para Editor de Textos/Marcadores Inline
-        window.addCustomText = () => {
-            const defaultY = state.strips.length > 0 && state.strips[0].frameY > 0 
-                ? state.strips[0].frameY - 30 
-                : state.canvasConfig.paddingTop - 30;
-            state.customTexts.push({
-                id: 'txt_' + Date.now(), text: 'Text',
-                x: state.canvasConfig.paddingLeft, y: defaultY,
-                fontSize: 16, isBold: false, isItalic: false
+        // Funções para Editor de Textos/Marcadores Inline e Ancoragem Relativa
+        function updateMarkerAnchor(mrk) {
+            if (state.strips.length === 0) return;
+            let closest = state.strips[0];
+            let minDiff = Infinity;
+            state.strips.forEach(s => {
+                const midY = s.frameY + s.frameHeight / 2;
+                const diff = Math.abs(mrk.y - midY);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = s;
+                }
             });
+            mrk.stripId = closest.id;
+            mrk.relY = mrk.y - closest.frameY;
+            mrk.relX = mrk.x - closest.frameX;
+        }
+
+        function updateTextAnchor(txt) {
+            if (state.strips.length === 0) return;
+            const firstStrip = state.strips[0];
+            if (txt.y < firstStrip.frameY - 10) {
+                txt.isHeader = true;
+                txt.stripId = null;
+                txt.relStartY = txt.y - firstStrip.frameY;
+                txt.relStartX = txt.x - firstStrip.frameX;
+            } else {
+                txt.isHeader = false;
+                let closest = state.strips[0];
+                let minDiff = Infinity;
+                state.strips.forEach(s => {
+                    const midY = s.frameY + s.frameHeight / 2;
+                    const diff = Math.abs(txt.y - midY);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        closest = s;
+                    }
+                });
+                txt.stripId = closest.id;
+                txt.relY = txt.y - closest.frameY;
+                txt.relX = txt.x - closest.frameX;
+            }
+        }
+
+        window.addCustomText = () => {
+            const refStrip = state.strips.length > 0 ? state.strips[0] : null;
+            const defaultY = refStrip && refStrip.frameY > 0 
+                ? refStrip.frameY - 30 
+                : state.canvasConfig.paddingTop - 30;
+            const defaultX = state.canvasConfig.paddingLeft;
+            const newTxt = {
+                id: 'txt_' + Date.now(), text: 'Text',
+                x: defaultX, y: defaultY,
+                fontSize: 16, isBold: false, isItalic: false,
+                isHeader: true,
+                relStartY: refStrip ? defaultY - refStrip.frameY : -30,
+                relStartX: 0
+            };
+            state.customTexts.push(newTxt);
             drawFigure();
         };
 
         window.addCustomMarker = () => {
-            const defaultY = state.strips.length > 0 && state.strips[0].frameY > 0 
-                ? state.strips[0].frameY + 20 
+            const refStrip = state.strips.length > 0 ? state.strips[0] : null;
+            const defaultY = refStrip && refStrip.frameY > 0 
+                ? refStrip.frameY + 20 
                 : state.canvasConfig.paddingTop;
-            state.customMarkers.push({
+            const defaultX = state.canvasConfig.paddingLeft - 80;
+            const newMrk = {
                 id: 'mrk_' + Date.now(), text: '50 kDa',
-                x: state.canvasConfig.paddingLeft - 80, y: defaultY,
-                width: 40, strokeWidth: 1.5, isBold: false, isItalic: false
-            });
+                x: defaultX, y: defaultY,
+                width: 40, strokeWidth: 1.5, isBold: false, isItalic: false,
+                stripId: refStrip ? refStrip.id : null,
+                relX: refStrip ? defaultX - refStrip.frameX : -80,
+                relY: 20
+            };
+            state.customMarkers.push(newMrk);
             drawFigure();
         };
 
@@ -1049,7 +1107,19 @@
             autoArrange(); 
         };
         window.updateStripData = (id, field, value) => { const strip = state.strips.find(s => s.id === id); if (strip) { strip[field] = value; drawFigure(); } };
-        window.removeStrip = (id) => { state.strips = state.strips.filter(s => s.id !== id); updateUI(); autoArrange(); };
+        window.removeStrip = (id) => {
+            state.strips = state.strips.filter(s => s.id !== id);
+            if (state.groups[0].baseStripId === id) {
+                state.groups[0].baseStripId = state.strips.length > 0 ? state.strips[0].id : null;
+            }
+            state.customMarkers.forEach(m => {
+                if (m.stripId === id) m.stripId = state.strips.length > 0 ? state.strips[0].id : null;
+            });
+            state.customTexts.forEach(t => {
+                if (t.stripId === id) t.stripId = state.strips.length > 0 ? state.strips[0].id : null;
+            });
+            updateUI(); autoArrange();
+        };
         window.moveStrip = (index, direction) => {
             const newIndex = index + direction;
             if (newIndex >= 0 && newIndex < state.strips.length) {
@@ -1105,25 +1175,15 @@
                 }
             }
 
-            const refStrip = groupStrips[0]; const refRatio = refStrip.imageObj.width / refStrip.imageObj.height;
-            const commonWidth = state.settings.stripHeight * refRatio; const frameLeft = state.canvasConfig.paddingLeft;
-
-            // Preservar a posição relativa dos marcadores e textos livres em relação às bandas do blot
-            const hasExistingLayout = refStrip.frameY > 0;
-            if (hasExistingLayout) {
-                const deltaY = startY - refStrip.frameY;
-                const deltaX = frameLeft - refStrip.frameX;
-                if (deltaY !== 0 || deltaX !== 0) {
-                    state.customMarkers.forEach(mrk => {
-                        mrk.x += deltaX;
-                        mrk.y += deltaY;
-                    });
-                    state.customTexts.forEach(txt => {
-                        txt.x += deltaX;
-                        txt.y += deltaY;
-                    });
-                }
+            // Ancorar strip base para que a largura nunca sofra alteração ao reordenar strips
+            let refStrip = groupStrips.find(s => s.id === group.baseStripId);
+            if (!refStrip) {
+                refStrip = groupStrips[0];
+                group.baseStripId = refStrip.id;
             }
+            const refRatio = refStrip.imageObj.width / refStrip.imageObj.height;
+            const commonWidth = state.settings.stripHeight * refRatio;
+            const frameLeft = state.canvasConfig.paddingLeft;
 
             let currentY = startY;
 
@@ -1132,6 +1192,38 @@
                 strip.frameX = frameLeft; strip.frameY = currentY; strip.frameWidth = commonWidth; strip.frameHeight = commonWidth / ratio;
                 strip.imageX = strip.frameX; strip.imageY = strip.frameY; strip.imageWidth = strip.frameWidth; strip.imageHeight = strip.frameHeight;
                 currentY += strip.frameHeight + state.settings.spacing;
+            });
+
+            // Atualiza posição de marcadores de tamanho ancorados à sua respectiva strip
+            state.customMarkers.forEach(mrk => {
+                let targetStrip = mrk.stripId ? state.strips.find(s => s.id === mrk.stripId) : null;
+                if (!targetStrip && state.strips.length > 0) {
+                    targetStrip = state.strips[0];
+                    mrk.stripId = targetStrip.id;
+                }
+                if (targetStrip) {
+                    mrk.x = targetStrip.frameX + (mrk.relX !== undefined ? mrk.relX : -80);
+                    mrk.y = targetStrip.frameY + (mrk.relY !== undefined ? mrk.relY : 20);
+                }
+            });
+
+            // Atualiza posição de textos livres (cabeçalho ou vinculados à strip)
+            state.customTexts.forEach(txt => {
+                if (txt.isHeader) {
+                    const firstStrip = groupStrips[0];
+                    txt.x = frameLeft + (txt.relStartX !== undefined ? txt.relStartX : 0);
+                    txt.y = firstStrip.frameY + (txt.relStartY !== undefined ? txt.relStartY : -30);
+                } else {
+                    let targetStrip = txt.stripId ? state.strips.find(s => s.id === txt.stripId) : null;
+                    if (!targetStrip && state.strips.length > 0) {
+                        targetStrip = state.strips[0];
+                        txt.stripId = targetStrip.id;
+                    }
+                    if (targetStrip) {
+                        txt.x = targetStrip.frameX + (txt.relX !== undefined ? txt.relX : 0);
+                        txt.y = targetStrip.frameY + (txt.relY !== undefined ? txt.relY : 0);
+                    }
+                }
             });
 
             const requiredHeight = currentY + state.canvasConfig.paddingBottom;
@@ -1178,7 +1270,12 @@
                 tNode.on('mouseenter', () => document.body.style.cursor = 'move');
                 tNode.on('mouseleave', () => document.body.style.cursor = 'default');
                 tNode.on('dragstart', () => clearSelection());
-                tNode.on('dragend', (e) => { txt.x = e.target.x(); txt.y = e.target.y(); selectItem(txt.id, 'text', tNode); });
+                tNode.on('dragend', (e) => { 
+                    txt.x = e.target.x(); 
+                    txt.y = e.target.y(); 
+                    updateTextAnchor(txt);
+                    selectItem(txt.id, 'text', tNode); 
+                });
                 tNode.on('click tap', (e) => { e.cancelBubble = true; selectItem(txt.id, 'text', tNode); });
                 tNode.on('dblclick dbltap', (e) => { e.cancelBubble = true; openTextOverlay(txt, 'text', tNode); });
                 
@@ -1206,7 +1303,14 @@
                 markerGroup.on('mouseleave', () => { document.body.style.cursor = 'default'; markerDragGuide.opacity(0); });
                 markerGroup.on('dragstart', () => { clearSelection(); markerDragGuide.y(markerGroup.y()); markerDragGuide.opacity(0.4); markerDragGuide.moveToTop(); guideLayer.batchDraw(); });
                 markerGroup.on('dragmove', () => { markerDragGuide.y(markerGroup.y()); guideLayer.batchDraw(); });
-                markerGroup.on('dragend', (e) => { mrk.x = e.target.x(); mrk.y = e.target.y(); markerDragGuide.opacity(0); guideLayer.batchDraw(); selectItem(mrk.id, 'marker', markerGroup); });
+                markerGroup.on('dragend', (e) => { 
+                    mrk.x = e.target.x(); 
+                    mrk.y = e.target.y(); 
+                    updateMarkerAnchor(mrk);
+                    markerDragGuide.opacity(0); 
+                    guideLayer.batchDraw(); 
+                    selectItem(mrk.id, 'marker', markerGroup); 
+                });
                 
                 markerGroup.on('click tap', (e) => { e.cancelBubble = true; selectItem(mrk.id, 'marker', markerGroup); });
                 markerGroup.on('dblclick dbltap', (e) => { e.cancelBubble = true; openTextOverlay(mrk, 'marker', text, markerGroup); });
