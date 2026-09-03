@@ -728,18 +728,24 @@
 
         // Funções para Editor de Textos/Marcadores Inline
         window.addCustomText = () => {
+            const defaultY = state.strips.length > 0 && state.strips[0].frameY > 0 
+                ? state.strips[0].frameY - 30 
+                : state.canvasConfig.paddingTop - 30;
             state.customTexts.push({
                 id: 'txt_' + Date.now(), text: 'Text',
-                x: state.canvasConfig.paddingLeft, y: state.canvasConfig.paddingTop - 30,
+                x: state.canvasConfig.paddingLeft, y: defaultY,
                 fontSize: 16, isBold: false, isItalic: false
             });
             drawFigure();
         };
 
         window.addCustomMarker = () => {
+            const defaultY = state.strips.length > 0 && state.strips[0].frameY > 0 
+                ? state.strips[0].frameY + 20 
+                : state.canvasConfig.paddingTop;
             state.customMarkers.push({
                 id: 'mrk_' + Date.now(), text: '50 kDa',
-                x: state.canvasConfig.paddingLeft - 80, y: state.canvasConfig.paddingTop,
+                x: state.canvasConfig.paddingLeft - 80, y: defaultY,
                 width: 40, strokeWidth: 1.5, isBold: false, isItalic: false
             });
             drawFigure();
@@ -1038,7 +1044,10 @@
             updateUI(); autoArrange();
         };
 
-        window.updateLaneLabel = (index, value) => { state.groups[0].laneLabels[index] = value; drawFigure(); };
+        window.updateLaneLabel = (index, value) => { 
+            state.groups[0].laneLabels[index] = value; 
+            autoArrange(); 
+        };
         window.updateStripData = (id, field, value) => { const strip = state.strips.find(s => s.id === id); if (strip) { strip[field] = value; drawFigure(); } };
         window.removeStrip = (id) => { state.strips = state.strips.filter(s => s.id !== id); updateUI(); autoArrange(); };
         window.moveStrip = (index, direction) => {
@@ -1074,6 +1083,7 @@
         });
 
         function autoArrange() {
+            clearSelection();
             if (state.strips.length === 0) { drawFigure(); return; }
             const group = state.groups[0]; const groupStrips = state.strips.filter(s => s.groupId === group.id);
             if (groupStrips.length === 0) return;
@@ -1088,7 +1098,7 @@
             if (state.settings.showLanes) {
                 if (state.settings.laneLabelRotation === 0) startY += state.settings.laneSize + 20; 
                 else {
-                    const maxLen = Math.max(...group.laneLabels.map(l => l.length));
+                    const maxLen = Math.max(0, ...group.laneLabels.map(l => (l || '').length));
                     const approxWidth = maxLen * (state.settings.laneSize * 0.6); 
                     if (state.settings.laneLabelRotation === -45) startY += (approxWidth * 0.707) + 20; 
                     else if (state.settings.laneLabelRotation === -90) startY += approxWidth + 20;
@@ -1097,6 +1107,24 @@
 
             const refStrip = groupStrips[0]; const refRatio = refStrip.imageObj.width / refStrip.imageObj.height;
             const commonWidth = state.settings.stripHeight * refRatio; const frameLeft = state.canvasConfig.paddingLeft;
+
+            // Preservar a posição relativa dos marcadores e textos livres em relação às bandas do blot
+            const hasExistingLayout = refStrip.frameY > 0;
+            if (hasExistingLayout) {
+                const deltaY = startY - refStrip.frameY;
+                const deltaX = frameLeft - refStrip.frameX;
+                if (deltaY !== 0 || deltaX !== 0) {
+                    state.customMarkers.forEach(mrk => {
+                        mrk.x += deltaX;
+                        mrk.y += deltaY;
+                    });
+                    state.customTexts.forEach(txt => {
+                        txt.x += deltaX;
+                        txt.y += deltaY;
+                    });
+                }
+            }
+
             let currentY = startY;
 
             groupStrips.forEach(strip => {
@@ -1231,14 +1259,19 @@
                 } else sampleIdx = i;
 
                 if (state.settings.showLanes) {
-                    let text = isLadder ? (group.ladderName || "L") : (group.laneLabels[sampleIdx] || `Lane ${sampleIdx+1}`);
-                    const laneText = new Konva.Text({ text: text, fontSize: state.settings.laneSize, fontFamily: fontFamily, fill: isLadder ? '#756D7C' : 'black', fontStyle: isLadder ? 'italic' : 'normal' });
-                    const rotation = state.settings.laneLabelRotation;
+                    let text = isLadder 
+                        ? (group.ladderName !== undefined && group.ladderName !== null ? group.ladderName : '') 
+                        : (group.laneLabels[sampleIdx] !== undefined && group.laneLabels[sampleIdx] !== null ? group.laneLabels[sampleIdx] : '');
                     
-                    if (rotation === 0) { laneText.position({ x: centerX - 100, y: refStrip.frameY - state.settings.laneSize - 15 }); laneText.width(200); laneText.align('center'); } 
-                    else if (rotation === -45) { laneText.position({ x: centerX, y: refStrip.frameY - 10 }); laneText.rotation(-45); } 
-                    else if (rotation === -90) { laneText.position({ x: centerX - (state.settings.laneSize/2), y: refStrip.frameY - 10 }); laneText.rotation(-90); }
-                    textLayer.add(laneText);
+                    if (text !== '') {
+                        const laneText = new Konva.Text({ text: text, fontSize: state.settings.laneSize, fontFamily: fontFamily, fill: isLadder ? '#756D7C' : 'black', fontStyle: isLadder ? 'italic' : 'normal' });
+                        const rotation = state.settings.laneLabelRotation;
+                        
+                        if (rotation === 0) { laneText.position({ x: centerX - 100, y: refStrip.frameY - state.settings.laneSize - 15 }); laneText.width(200); laneText.align('center'); } 
+                        else if (rotation === -45) { laneText.position({ x: centerX, y: refStrip.frameY - 10 }); laneText.rotation(-45); } 
+                        else if (rotation === -90) { laneText.position({ x: centerX - (state.settings.laneSize/2), y: refStrip.frameY - 10 }); laneText.rotation(-90); }
+                        textLayer.add(laneText);
+                    }
                 }
                 if (state.settings.showGuides) guideLayer.add(new Konva.Line({ points: [centerX, refStrip.frameY - 10, centerX, groupBottomY], stroke: 'rgba(74, 25, 125, 0.4)', strokeWidth: 1, dash: [4, 4], listening: false }));
             }
@@ -1248,7 +1281,7 @@
                 if (state.settings.showLanes) {
                     if (state.settings.laneLabelRotation === 0) textOffsetHeight = state.settings.laneSize + 15;
                     else {
-                        const maxLen = Math.max(...group.laneLabels.map(l => l.length));
+                        const maxLen = Math.max(0, ...group.laneLabels.map(l => (l || '').length));
                         const approxWidth = maxLen * (state.settings.laneSize * 0.6);
                         if (state.settings.laneLabelRotation === -45) textOffsetHeight = (approxWidth * 0.707) + 15;
                         if (state.settings.laneLabelRotation === -90) textOffsetHeight = approxWidth + 15;
