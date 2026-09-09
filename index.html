@@ -276,6 +276,16 @@
     <main>
         <!-- Left Sidebar: Main Controls -->
         <aside class="sidebar left-sidebar">
+            <!-- Disclaimer -->
+            <div style="padding: 20px 20px 0 20px;">
+                <div style="background-color: var(--light-lavender); border-radius: var(--radius-md); padding: 12px; display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--border);">
+                    <span class="material-symbols-rounded" style="font-size: 18px; color: var(--primary);">info</span>
+                    <p style="font-size: 0.75rem; color: var(--text-main); line-height: 1.4; margin: 0;">
+                        <strong style="color: var(--primary-dark);">Disclaimer:</strong> Blotly is intended for figure preparation only. Quantitative analysis should always be performed on the original, unprocessed image data.
+                    </p>
+                </div>
+            </div>
+
             <div class="section" style="padding-bottom: 10px;">
                 <div class="upload-zone" id="upload-zone">
                     <span class="material-symbols-rounded">image</span>
@@ -604,10 +614,48 @@
         }
 
         function applyEdits() {
-            cropTransformer.hide(); cropRect.hide(); editorStage.draw();
             const box = cropRect.getClientRect();
-            const dataURL = editorStage.toDataURL({ x: box.x, y: box.y, width: box.width, height: box.height, pixelRatio: 3 });
-            cropTransformer.show(); cropRect.show(); editorStage.batchDraw();
+            const img = currentOriginalImg;
+            
+            // Calcula a escala usada no editor comparada à imagem original
+            const scale = editorImageNode.width() / img.width;
+            
+            // Posição central da imagem no stage
+            const cx = editorImageNode.x();
+            const cy = editorImageNode.y();
+            
+            // Dimensões finais do recorte na resolução original pura
+            const cropW = box.width / scale;
+            const cropH = box.height / scale;
+            
+            // Deslocamento do centro da área de corte em relação ao centro da imagem
+            const boxCx = box.x + box.width / 2;
+            const boxCy = box.y + box.height / 2;
+            const offsetX = (boxCx - cx) / scale;
+            const offsetY = (boxCy - cy) / scale;
+            
+            // Cria um canvas nativo para processar na resolução original
+            const canvas = document.createElement('canvas');
+            canvas.width = cropW;
+            canvas.height = cropH;
+            const ctx = canvas.getContext('2d');
+            
+            // Aplica o filtro de contraste nativo do Canvas
+            const konvaContrast = editorImageNode.contrast() || 0;
+            const nativeContrast = (konvaContrast + 100) + '%';
+            ctx.filter = `contrast(${nativeContrast})`;
+            
+            // Translada para o centro do canvas (centro do recorte)
+            ctx.translate(cropW / 2, cropH / 2);
+            // Translada de volta para o centro da imagem original
+            ctx.translate(-offsetX, -offsetY);
+            // Aplica a rotação
+            ctx.rotate((editorImageNode.rotation() * Math.PI) / 180);
+            
+            // Desenha a imagem original em alta resolução preservando todos os pixels
+            ctx.drawImage(img, -img.width / 2, -img.height / 2, img.width, img.height);
+            
+            const dataURL = canvas.toDataURL('image/png');
             
             const finalImg = new Image();
             finalImg.onload = () => {
